@@ -1,0 +1,68 @@
+
+* From Adam Fisk
+
+So, basically, this chunk of code from DefaultRelayPipelineFactory: 
+            filter = filters.get(hostAndPort); 
+            if (filter == null) { 
+                LOG.info("Filter not found in: {}", filters); 
+                shouldFilter = false; 
+            } 
+            else { 
+                LOG.debug("Using filter: {}", filter); 
+                shouldFilter = filter.shouldFilterResponses(httpRequest); 
+                // We decompress and aggregate chunks for responses from 
+                // sites we're applying rules to. 
+                if (shouldFilter) { 
+                    pipeline.addLast("inflater", 
+                        new HttpContentDecompressor()); 
+                    pipeline.addLast("aggregator", 
+                        new 
+HttpChunkAggregator(filter.getMaxResponseSize()));//2048576)); 
+                } 
+            } 
+            LOG.debug("Filtering: "+shouldFilter); 
+
+Needs to get moved into HttpRequestHandler whenever a new host and
+port combination come in over the connection, ideally along with the
+"filter off" state. So it's not a huge change really.
+
+* DefaultRelayPipelineFactory
+
+- constructor takes a pile of info about the pipeline
+
+- getPipeline constructs the actual pipeline that will get used.
+
+- filters based on hostAndPort (to determine the filter class), and
+  then filters based on shouldFilterResponses(httpRequest) to
+  determine specific requests.
+
+- needs to be moved into HttpRequestHandler?
+
+- pipeline contents:
+  - addLast("decoder", new HttpResponseDecoder)
+  - addLast("inflater", new HttpContentDecompressor)
+  - addLast("aggregator", new HttpChunkAggregator)
+
+  - handler = HttpRelayingHandler(browserToProxyChannel, channelGroup,
+    filter, relayListener, hostAndPort)
+  
+  - addLast("encoder", new ProxyHttpRequestEncoder(handler,
+    requestFilter, chainProxyHostAndPort)
+
+  - addLast("idle", new IdleStateHandler)
+  - addLast("idleAware", new IdleAwareHandler)
+  - addLast("handler", handler) from above, HttpRelayingHandler
+
+- Why does the handler get injected into the pipeline twice? (Once in
+  the ProxyHttpRequestEncoder(HttpRelayingHandler), once at the very end)
+
+- PHRE gets this.relayingHandler = handler
+- this.relayingHandler is fed the request through the requestEncoded()
+  method
+- That is all that PHRE does with the handler
+
+* Modifications to make
+
+- Pass the filter list into the HttpRelayingHandler instead of passing
+  the filter in, from DefaultRelayPipelineFactory
+

@@ -2,6 +2,8 @@ package org.littleshoot.proxy;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.commons.lang.StringUtils;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -38,7 +40,7 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
 
     private final ChannelGroup channelGroup;
 
-    private final HttpFilter httpFilter;
+    private final Map<String, HttpFilter> httpFilters;
 
     private HttpResponse originalHttpResponse;
 
@@ -47,10 +49,11 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
      * as multiple requests come in on the same persistent HTTP 1.1 connection.
      */
     private HttpRequest currentHttpRequest;
+    private String currentHostAndPort;
 
     private final RelayListener relayListener;
 
-    private final String hostAndPort;
+    private final String chainProxyHostAndPort;
 
     private boolean closeEndsResponseBody;
 
@@ -64,9 +67,9 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
      */
     public HttpRelayingHandler(final Channel browserToProxyChannel, 
         final ChannelGroup channelGroup, 
-        final RelayListener relayListener, final String hostAndPort) {
-        this (browserToProxyChannel, channelGroup, new NoOpHttpFilter(),
-            relayListener, hostAndPort);
+        final RelayListener relayListener, final String chainProxyHostAndPort) {
+        this(browserToProxyChannel, channelGroup, null,
+            relayListener, chainProxyHostAndPort);
     }
     
     /**
@@ -79,13 +82,19 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
      * @param hostAndPort Host and port we're relaying to.
      */
     public HttpRelayingHandler(final Channel browserToProxyChannel,
-        final ChannelGroup channelGroup, final HttpFilter filter,
-        final RelayListener relayListener, final String hostAndPort) {
+			       final ChannelGroup channelGroup, 
+			       final Map<String, HttpFilter> filters,
+			       final RelayListener relayListener, 
+			       final String chainProxyHostAndPort) {
         this.browserToProxyChannel = browserToProxyChannel;
         this.channelGroup = channelGroup;
-        this.httpFilter = filter;
+	if (filters != null) {
+	    this.httpFilters = filters;
+	} else {
+	    this.httpFilters = new HashMap<String, HttpFilter>();
+	}
         this.relayListener = relayListener;
-        this.hostAndPort = hostAndPort;
+        this.chainProxyHostAndPort = chainProxyHostAndPort;
     }
 
     @Override
@@ -154,9 +163,7 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
             else {
                 writeEndBuffer = true;
             }
-            
-            messageToWrite = this.httpFilter.filterResponse(response);
-            
+                        
             // An HTTP response is associated with a single request, so we
             // can pop the correct request off the queue.
             // 
@@ -165,13 +172,31 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
             // We've seen this particularly when behind proxies that govern
             // access control on local networks, likely related to redirects.
             if (!this.requestQueue.isEmpty()) {
-                this.currentHttpRequest = this.requestQueue.remove();
+                this.updateCurrentRequest(this.requestQueue.remove());
                 if (this.currentHttpRequest == null) {
                     log.warn("Got null HTTP request object.");
                 }
             } else {
                 log.info("Request queue is empty!");
             }
+
+
+            HttpFilter filter = this.httpFilters.get(this.currentHostAndPort);
+	    boolean shouldFilter;
+
+            if (filter == null) {
+                log.info("Filter not found in: {}", this.httpFilters);
+		shouldFilter = false;
+            } else {
+		shouldFilter = filter.shouldFilterResponses(this.currentHttpRequest);
+	    }
+
+	    if (!shouldFilter) {
+		filter = new NoOpHttpFilter();
+	    }
+
+            messageToWrite = filter.filterResponse(response);
+
         } else {
             log.info("Processing a chunk");
             final HttpChunk chunk = (HttpChunk) me.getMessage();
@@ -230,7 +255,7 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
                     public void operationComplete(final ChannelFuture cf) 
                         throws Exception {
                         relayListener.onRelayHttpResponse(browserToProxyChannel, 
-                            hostAndPort, currentHttpRequest);
+                            currentHostAndPort, currentHttpRequest);
                     }
                 });
             }
@@ -268,7 +293,7 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
             }
             if (wroteFullResponse && (!closePending && !closeRemote)) {
                 log.debug("Making remote channel available for requests");
-                this.relayListener.onChannelAvailable(hostAndPort,
+                this.relayListener.onChannelAvailable(this.currentHostAndPort,
                     Channels.succeededFuture(me.getChannel()));
             }
         }
@@ -427,7 +452,7 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
         final int unansweredRequests = this.requestQueue.size();
         log.info("Unanswered requests: {}", unansweredRequests);
         this.relayListener.onRelayChannelClose(browserToProxyChannel, 
-            this.hostAndPort, unansweredRequests, this.closeEndsResponseBody);
+            this.currentHostAndPort, unansweredRequests, this.closeEndsResponseBody);
     }
 
     @Override
@@ -464,6 +489,14 @@ public class HttpRelayingHandler extends SimpleChannelUpstreamHandler {
      */
     public void requestEncoded(final HttpRequest request) {
         this.requestQueue.add(request);
+    }
+
+    private void updateCurrentRequest(final HttpRequest request) {
+	this.currentHttpRequest = request;
+	this.currentHostAndPort = 
+	    this.chainProxyHostAndPort != null ? this.chainProxyHostAndPort : 
+	    ProxyUtils.parseHostAndPort(this.currentHttpRequest);
+	
     }
     
 }

@@ -24,7 +24,6 @@ public class DefaultRelayPipelineFactory implements ChannelPipelineFactory {
         LoggerFactory.getLogger(DefaultRelayPipelineFactory.class);
     private static final Timer TIMER = new HashedWheelTimer();
     
-    private final String hostAndPort;
     private final HttpRequest httpRequest;
     private final RelayListener relayListener;
     private final Channel browserToProxyChannel;
@@ -36,13 +35,12 @@ public class DefaultRelayPipelineFactory implements ChannelPipelineFactory {
     private final boolean filtersOff;
 
     
-    public DefaultRelayPipelineFactory(final String hostAndPort, 
+    public DefaultRelayPipelineFactory(
         final HttpRequest httpRequest, final RelayListener relayListener, 
         final Channel browserToProxyChannel,
         final ChannelGroup channelGroup, final Map<String, HttpFilter> filters, 
         final HttpRequestFilter requestFilter, 
         final String chainProxyHostAndPort) {
-        this.hostAndPort = hostAndPort;
         this.httpRequest = httpRequest;
         this.relayListener = relayListener;
         this.browserToProxyChannel = browserToProxyChannel;
@@ -71,32 +69,12 @@ public class DefaultRelayPipelineFactory implements ChannelPipelineFactory {
         pipeline.addLast("decoder", 
             new HttpResponseDecoder(8192, 8192*2, 8192*2));
         
-        LOG.debug("Querying for host and port: {}", hostAndPort);
-        final boolean shouldFilter;
-        final HttpFilter filter;
-        if (filtersOff) {
-            shouldFilter = false;
-            filter = null;
-        } else {
-            filter = filters.get(hostAndPort);
-            if (filter == null) {
-                LOG.info("Filter not found in: {}", filters);
-                shouldFilter = false;
-            }
-            else {
-                LOG.debug("Using filter: {}", filter);
-                shouldFilter = filter.shouldFilterResponses(httpRequest);
-                // We decompress and aggregate chunks for responses from 
-                // sites we're applying rules to.
-                if (shouldFilter) {
-                    pipeline.addLast("inflater", 
-                        new HttpContentDecompressor());
-                    pipeline.addLast("aggregator",            
-                        new HttpChunkAggregator(filter.getMaxResponseSize()));//2048576));
-                }
-            }
-            LOG.debug("Filtering: "+shouldFilter);
-        }
+	if (! filtersOff ) {
+	    pipeline.addLast("inflater", 
+			     new HttpContentDecompressor());
+	    pipeline.addLast("aggregator",            
+			     new HttpChunkAggregator(2048576)); // TODO find the max of all the filters
+	}
         
         // The trick here is we need to determine whether or not
         // to cache responses based on the full URI of the request.
@@ -104,12 +82,13 @@ public class DefaultRelayPipelineFactory implements ChannelPipelineFactory {
         // host, so we just have to be aware of that and construct
         // the original.
         final HttpRelayingHandler handler;
-        if (shouldFilter) {
+        if (! filtersOff ) {
             handler = new HttpRelayingHandler(browserToProxyChannel, 
-                channelGroup, filter, relayListener, hostAndPort);
+					      channelGroup, filters, 
+					      relayListener, chainProxyHostAndPort);
         } else {
             handler = new HttpRelayingHandler(browserToProxyChannel, 
-                channelGroup, relayListener, hostAndPort);
+                channelGroup, relayListener, chainProxyHostAndPort);
         }
         
         final ProxyHttpRequestEncoder encoder = 

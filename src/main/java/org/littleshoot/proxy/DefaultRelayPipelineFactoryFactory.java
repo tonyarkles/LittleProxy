@@ -28,13 +28,10 @@ public class DefaultRelayPipelineFactoryFactory
     public ChannelPipelineFactory getRelayPipelineFactory(
         final HttpRequest httpRequest, final Channel browserToProxyChannel, 
         final RelayListener relayListener) {
-        final String hostAndPort = 
-            chainProxyHostAndPort != null ? chainProxyHostAndPort : 
-                ProxyUtils.parseHostAndPort(httpRequest);
         
-        return new DefaultRelayPipelineFactory(hostAndPort, httpRequest, 
+        return new DefaultRelayPipelineFactory(httpRequest, 
             relayListener, browserToProxyChannel, channelGroup, filters, 
-            requestFilter, chainProxyHostAndPort);
+            requestFilter, this.chainProxyHostAndPort);
     }
     
 }
