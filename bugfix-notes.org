@@ -66,3 +66,28 @@ port combination come in over the connection, ideally along with the
 - Pass the filter list into the HttpRelayingHandler instead of passing
   the filter in, from DefaultRelayPipelineFactory
 
+* Verification
+
+** Proxy Reports:
+
+162849 2011-10-04 16:02:07,497 DEBUG [New I/O client worker #1-4] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/
+162913 2011-10-04 16:02:07,561 DEBUG [New I/O client worker #1-4] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/reddit.y7COJQdypiM.css
+162921 2011-10-04 16:02:07,569 DEBUG [New I/O client worker #1-1] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/reddit.en.VCS0mf7z7TA.js
+163613 2011-10-04 16:02:08,261 DEBUG [New I/O client worker #1-4] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/sprite-main.png?v=816b8dcd1f863d0343bb5e0d9e094215
+163632 2011-10-04 16:02:08,280 DEBUG [New I/O client worker #1-1] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/bg-button-negative-pressed.png
+163690 2011-10-04 16:02:08,338 DEBUG [New I/O client worker #1-3] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/bg-button-positive-unpressed.png
+163727 2011-10-04 16:02:08,375 DEBUG [New I/O client worker #1-3] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/bg-button-positive-pressed.png
+163782 2011-10-04 16:02:08,430 DEBUG [New I/O client worker #1-4] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/bg-button-negative-unpressed.png
+163810 2011-10-04 16:02:08,458 DEBUG [New I/O client worker #1-3] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/kill.png
+163819 2011-10-04 16:02:08,467 DEBUG [New I/O client worker #1-1] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/pixel.png
+164078 2011-10-04 16:02:08,726 DEBUG [New I/O client worker #1-1] jsproxy1.ChattyNullFilter.shouldFilterResponses (ChattyNullFilter.java:26) - Request for: http://www.reddit.com/static/goldmorelink.png
+164083 2011-10-04 16:02:08,731 DEBUG [New I/O client worker #1-4]
+jsproxy1.ChattyNullFilter.shouldFilterResponses
+(ChattyNullFilter.java:26) - Request for:
+http://www.reddit.com/api/onload
+
+** Browser reports:
+
+- 12 calls to www.reddit.com
+- proxy reports 12 calls too!
+
